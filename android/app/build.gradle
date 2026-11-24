@@ -1,0 +1,42 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.moustafaborhan.mbnotebook'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.moustafaborhan.mbnotebook'
+        minSdk 21
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1')
+        versionName '2.0'
+    }
+
+    signingConfigs {
+        release {
+            // The keystore is created by the GitHub Actions build; nothing secret is stored in this repository
+            storeFile file(System.getenv('MBN_KEYSTORE') ?: 'release.jks')
+            storePassword System.getenv('MBN_KEYSTORE_PASSWORD')
+            keyAlias 'mbnotebook'
+            keyPassword System.getenv('MBN_KEYSTORE_PASSWORD')
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}
