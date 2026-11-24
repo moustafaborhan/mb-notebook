@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MB Notebook</title>
+<meta name="description" content="Word-style notebook stored as Google Docs in your Google Drive, synced between Windows and Android.">
+<meta name="theme-color" content="#1D5BB8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+:root { color-scheme: light; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body { margin: 0; font: 14px system-ui, sans-serif; }
+
+/* Layout: notebook app — section rail | page list | paper editor; on phones one pane at a time */
+:root {
+  --bg: #EEF1F5;
+  --panel: #FFFFFF;
+  --panel-2: #F5F7FA;
+  --hover: #E7EBF1;
+  --ink: #18212C;
+  --muted: #5A6575;
+  --faint: #8792A2;
+  --line: #D8DEE6;
+  --accent: #1D5BB8;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E3ECFA;
+  --danger: #B42318;
+  --danger-soft: #FDECEA;
+  --ok: #1F7A4D;
+  --warn: #A15C07;
+  --shadow: 0 1px 2px rgba(20, 30, 45, .06), 0 8px 24px rgba(20, 30, 45, .08);
+  --font-ui: "IBM Plex Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-title: "Newsreader", Georgia, "Times New Roman", serif;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F141B; --panel: #161C25; --panel-2: #1B2230; --hover: #232C3B;
+    --ink: #E5EAF1; --muted: #A1ACBB; --faint: #758195; --line: #2A3442;
+    --accent: #78A6F5; --accent-ink: #0F141B; --accent-soft: #1E2C44;
+    --danger: #F2877D; --danger-soft: #3A1E1E; --ok: #6CCB98; --warn: #E7B15A;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F141B; --panel: #161C25; --panel-2: #1B2230; --hover: #232C3B;
+  --ink: #E5EAF1; --muted: #A1ACBB; --faint: #758195; --line: #2A3442;
+  --accent: #78A6F5; --accent-ink: #0F141B; --accent-soft: #1E2C44;
+  --danger: #F2877D; --danger-soft: #3A1E1E; --ok: #6CCB98; --warn: #E7B15A;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px;
+  overflow: hidden;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 220px 290px minmax(0, 1fr);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ---------- Section rail ---------- */
+#rail {
+  background: var(--panel-2); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; }
+.brand-mark {
+  width: 28px; height: 28px; border-radius: 7px; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font-family: var(--font-title); font-weight: 600; font-size: 15px; flex: none;
+}
+.brand-name { font-family: var(--font-title); font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+.rail-head, .list-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px 6px 16px;
+}
+.label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.icon-btn {
+  border: 0; background: transparent; width: 32px; height: 32px; border-radius: 6px;
+  display: inline-grid; place-items: center; color: var(--muted); flex: none;
+}
+.icon-btn:hover { background: var(--hover); color: var(--ink); }
+.icon-btn svg { width: 18px; height: 18px; }
+#sectionList { list-style: none; margin: 0; padding: 0 8px 8px; overflow-y: auto; flex: 1; min-height: 0; }
+.sec {
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; border-radius: 6px;
+  cursor: pointer; position: relative; user-select: none;
+}
+.sec:hover { background: var(--hover); }
+.sec.active { background: var(--panel); box-shadow: var(--shadow); }
+.sec .tab { width: 6px; height: 22px; border-radius: 3px; flex: none; }
+.sec .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.sec .count { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.sec .more { opacity: 0; width: 26px; height: 26px; }
+.sec:hover .more, .sec.active .more { opacity: 1; }
+.rail-foot { padding: 10px 16px 14px; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+.sync-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.bad { background: var(--danger); }
+.version { font-size: 11px; color: var(--faint); }
+.chip.drive a { color: var(--accent); }
+
+/* ---------- Page list ---------- */
+#pagesPane {
+  background: var(--panel); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0;
+}
+.list-head { padding-top: 16px; padding-bottom: 10px; }
+.list-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.list-title .tab { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+#sectionTitle { font-family: var(--font-title); font-size: 20px; font-weight: 600; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-back { display: none; }
+.search { padding: 0 12px 10px 16px; }
+.search input {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--panel-2);
+  border-radius: 6px; padding: 8px 10px 8px 32px; font-size: 13px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238792A2' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-size: 16px; background-position: 10px center;
+}
+.list-actions { display: flex; gap: 8px; padding: 0 12px 12px 16px; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 7px 12px;
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap;
+}
+.btn:hover { background: var(--hover); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn:disabled { opacity: .5; cursor: default; }
+#pageList { list-style: none; margin: 0; padding: 0 8px 16px; overflow-y: auto; flex: 1; min-height: 0; }
+.pg {
+  padding: 10px 10px 10px 12px; border-radius: 6px; cursor: pointer; display: grid; gap: 3px;
+  border-left: 3px solid transparent;
+}
+.pg:hover { background: var(--hover); }
+.pg.active { background: var(--accent-soft); border-left-color: var(--accent); }
+.pg .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg .p { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg .m { font-size: 11.5px; color: var(--faint); display: flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.pg .m .tab { width: 7px; height: 7px; border-radius: 2px; }
+.empty { padding: 24px 16px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.empty strong { color: var(--ink); display: block; margin-bottom: 4px; font-size: 14px; }
+
+/* ---------- Editor pane ---------- */
+#main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
+.pagebar {
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--panel);
+  border-bottom: 1px solid var(--line); min-width: 0;
+}
+#titleInput {
+  flex: 1; min-width: 0; border: 0; background: transparent; font-family: var(--font-title);
+  font-size: 24px; font-weight: 600; padding: 4px 6px; border-radius: 6px; letter-spacing: -.01em;
+}
+#titleInput:hover { background: var(--panel-2); }
+#titleInput:focus { background: var(--panel-2); outline: none; box-shadow: inset 0 0 0 1px var(--line); }
+.status {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted);
+  white-space: nowrap; padding: 4px 8px; border-radius: 999px; background: var(--panel-2);
+}
+.bar-actions { display: flex; gap: 6px; align-items: center; }
+.meta-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px;
+  background: var(--panel); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted);
+}
+.meta-row:empty { display: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 4px 3px 10px; background: var(--panel-2); max-width: 260px; font-size: 12px; color: var(--ink);
+}
+.chip a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip a:hover { text-decoration: underline; }
+.chip .sz { color: var(--faint); font-variant-numeric: tabular-nums; }
+.chip button { border: 0; background: transparent; width: 20px; height: 20px; border-radius: 50%; color: var(--faint); display: grid; place-items: center; }
+.chip button:hover { background: var(--hover); color: var(--danger); }
+#editorWrap { flex: 1; min-height: 0; position: relative; }
+#editorHost { position: absolute; inset: 0; }
+#editorHost .tox-tinymce { border: 0; border-radius: 0; }
+#noPage {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px;
+  background: var(--bg); color: var(--muted); z-index: 2;
+}
+#noPage h2 { font-family: var(--font-title); font-weight: 600; font-size: 26px; color: var(--ink); margin: 0 0 8px; text-wrap: balance; }
+#noPage p { margin: 0 auto 18px; max-width: 42ch; line-height: 1.55; }
+#noPage .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+#loading {
+  position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent);
+  z-index: 3; color: var(--muted); font-size: 13px;
+}
+.progress { width: min(320px, 80vw); display: grid; gap: 8px; text-align: center; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* ---------- Menus, sheets, toast ---------- */
+.menu {
+  position: fixed; z-index: 50; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: var(--shadow); padding: 6px; min-width: 200px; display: grid;
+}
+.menu button {
+  border: 0; background: transparent; text-align: left; padding: 8px 10px; border-radius: 5px;
+  display: flex; gap: 10px; align-items: center; font-size: 13.5px;
+}
+.menu button:hover { background: var(--hover); }
+.menu button.danger { color: var(--danger); }
+.menu button small { color: var(--faint); margin-left: auto; font-size: 11.5px; }
+.menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+#scrim { position: fixed; inset: 0; background: rgba(10, 15, 22, .45); z-index: 60; display: grid; place-items: center; padding: 16px; }
+.sheet {
+  background: var(--panel); border-radius: 12px; box-shadow: var(--shadow); width: min(420px, 100%);
+  padding: 20px; display: grid; gap: 14px; box-sizing: border-box;
+}
+.sheet h3 { margin: 0; font-family: var(--font-title); font-size: 21px; font-weight: 600; }
+.sheet p { margin: 0; color: var(--muted); line-height: 1.5; }
+.sheet label { display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.sheet input[type=text], .sheet select {
+  border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; background: var(--panel-2); font-size: 14px;
+}
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches button { width: 28px; height: 28px; border-radius: 7px; border: 2px solid transparent; }
+.swatches button[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--panel); }
+.sheet .actions { display: flex; justify-content: flex-end; gap: 8px; }
+#toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--panel); padding: 10px 16px; border-radius: 8px; font-size: 13px;
+  z-index: 70; box-shadow: var(--shadow); max-width: min(520px, calc(100vw - 32px)); line-height: 1.45;
+}
+#banner {
+  background: var(--danger-soft); color: var(--danger); padding: 8px 16px; font-size: 12.5px; border-bottom: 1px solid var(--line);
+}
+
+/* ---------- Tablet ---------- */
+@media (max-width: 1080px) {
+  #app { grid-template-columns: 200px 250px minmax(0, 1fr); }
+}
+/* ---------- Phone: one pane at a time ---------- */
+@media (max-width: 760px) {
+  #app { grid-template-columns: 100%; grid-template-rows: 100%; padding: 0; }
+  #rail, #pagesPane, #main { grid-area: 1 / 1; }
+  #app[data-view="sections"] #pagesPane, #app[data-view="sections"] #main { display: none; }
+  #app[data-view="pages"] #rail, #app[data-view="pages"] #main { display: none; }
+  #app[data-view="editor"] #rail, #app[data-view="editor"] #pagesPane { display: none; }
+  #rail, #pagesPane { border: 0; }
+  .brand, .rail-head, .list-head, .search, .list-actions, .rail-foot, .pagebar, .meta-row {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  #sectionList, #pageList { padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+  .sec { padding-block: 12px; }
+  .sec .more { opacity: 1; }
+  .pane-back { display: inline-grid; margin-left: -8px; }
+  .pagebar { padding-block: 8px; gap: 4px; }
+  #titleInput { font-size: 20px; }
+  .status .txt { display: none; }
+  .bar-actions .btn .lbl { display: none; }
+  .bar-actions .btn { padding: 7px 9px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+html, body { height: 100%; margin: 0; }
+body { -webkit-text-size-adjust: 100%; }
+#app { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); box-sizing: border-box; }
+.account { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 5px 6px; margin: 0 -6px; border-radius: 6px; font-size: 12px; color: var(--muted); text-align: left; min-width: 0; }
+.account:hover { background: var(--hover); color: var(--ink); }
+.account svg { width: 14px; height: 14px; flex: none; }
+.account span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#reconnect { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; background: var(--accent-soft); color: var(--ink); padding: 8px 16px; font-size: 13px; border-bottom: 1px solid var(--line); }
+#gate { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: grid; place-items: center; padding: 24px max(16px, env(safe-area-inset-left, 0px)); }
+.gate-card { background: var(--panel); border-radius: 14px; box-shadow: var(--shadow); width: min(400px, 100%); padding: 32px 28px; display: grid; gap: 14px; justify-items: center; text-align: center; box-sizing: border-box; }
+.gate-card h1 { font-family: var(--font-title); font-size: 28px; margin: 0; font-weight: 600; }
+.gate-card p { margin: 0; color: var(--muted); line-height: 1.55; }
+.gate-card small { color: var(--faint); font-size: 11px; }
+.brand-mark.big { width: 56px; height: 56px; border-radius: 14px; font-size: 26px; }
+.gbtn { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: #fff; color: #1F1F1F; border-radius: 999px; padding: 10px 20px; font-weight: 500; font-size: 14px; }
+.gbtn:hover { box-shadow: var(--shadow); }
+.gbtn svg { width: 18px; height: 18px; }
+</style>
+</head>
+<body>
+<div id="app" data-view="sections">
+  <aside id="rail" aria-label="Sections">
+    <div class="brand"><div class="brand-mark">MB</div><div class="brand-name">MB Notebook</div></div>
+    <div class="rail-head">
+      <span class="label">Sections</span>
+      <button class="icon-btn" id="addSectionBtn" title="New section" aria-label="New section">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <ul id="sectionList"></ul>
+    <div class="rail-foot">
+      <div class="sync-line"><span class="dot" id="syncDot"></span><span id="syncText">Connecting…</span></div>
+      <button type="button" class="account" id="accountBtn" title="Account and Google Drive">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-7.9z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 9.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>
+        <span id="accountText">Google account</span>
+      </button>
+      <div class="version" id="appVersion">Version 2.0</div>
+    </div>
+  </aside>
+
+  <section id="pagesPane" aria-label="Pages">
+    <div class="list-head">
+      <div class="list-title">
+        <button class="icon-btn pane-back" id="backToSections" aria-label="Back to sections">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <span class="tab" id="sectionTab"></span>
+        <h1 id="sectionTitle">Notebook</h1>
+      </div>
+    </div>
+    <div class="search"><input id="searchInput" type="search" placeholder="Search all pages" aria-label="Search pages"></div>
+    <div class="list-actions">
+      <button class="btn primary" id="newPageBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New page
+      </button>
+      <button class="btn" id="openFileBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M12 18v-6M9 15l3-3 3 3"/></svg>Open file
+      </button>
+    </div>
+    <ul id="pageList"></ul>
+  </section>
+
+  <main id="main">
+    <div id="reconnect" hidden><span>Your Google sign-in has expired. Changes are kept on this device until you sign in again.</span><button type="button" class="btn primary" id="reconnectBtn">Sign in again</button></div>
+    <div class="pagebar">
+      <button class="icon-btn pane-back" id="backToPages" aria-label="Back to pages">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <input id="titleInput" type="text" placeholder="Page title" aria-label="Page title" disabled>
+      <span class="status" id="saveStatus" title=""><span class="dot" id="saveDot"></span><span class="txt" id="saveText"></span></span>
+      <div class="bar-actions">
+        <button class="btn" id="attachBtn" title="Attach a file to this page" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></svg><span class="lbl">Attach</span>
+        </button>
+        <button class="btn" id="exportBtn" title="Export this page" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span class="lbl">Export</span>
+        </button>
+        <button class="icon-btn" id="pageMenuBtn" title="Page options" aria-label="Page options" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="meta-row" id="metaRow"></div>
+    <div id="editorWrap">
+      <div id="editorHost"><textarea id="editor"></textarea></div>
+      <div id="noPage">
+        <div>
+          <h2>Pick a page or start a new one</h2>
+          <p>Every page is a Google Doc in your Drive folder MBorhan-Cloud_Word. Changes save on their own and show up on your other devices.</p>
+          <div class="row">
+            <button class="btn primary" id="emptyNewBtn">New page</button>
+            <button class="btn" id="emptyOpenBtn">Open file</button>
+          </div>
+        </div>
+      </div>
+      <div id="loading" hidden>
+        <div class="progress"><span id="loadingText">Opening page…</span><div class="bar"><i id="loadingBar"></i></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<input type="file" id="importInput" accept=".docx,.doc,.odt,.rtf,.pdf,.md,.markdown,.txt" hidden>
+<input type="file" id="attachInput" hidden>
+
+<div id="gate" hidden>
+  <div class="gate-card">
+    <div class="brand-mark big">MB</div>
+    <h1>MB Notebook</h1>
+    <p id="gateText">Sign in with your Google account.</p>
+    <button type="button" class="gbtn" id="gateBtn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-7.9z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 9.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>
+      Sign in with Google
+    </button>
+    <small>Version 2.0</small>
+  </div>
+</div>
+<div id="scrim" hidden></div>
+<div id="toast" hidden role="status"></div>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7.9.1/tinymce.min.js" referrerpolicy="origin"></script>
+<script src="app.js"></script>
+</body>
+</html>
