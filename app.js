@@ -6,7 +6,7 @@
    Edits save to the Google Doc a couple of seconds after you stop
    typing; other devices pick changes up within ~15 seconds.
    ============================================================ */
-const APP_VERSION = "2.0.2";
+const APP_VERSION = "2.0.3";
 const CONFIG = window.MBN_CONFIG || {};
 const ROOT_ID = CONFIG.rootId || "12VpHmTOvgahjI8jEMMMC2NBYjS2Os5dO";
 const ROOT_NAME = CONFIG.rootName || "MBorhan-Cloud_Word";
@@ -1117,6 +1117,16 @@ async function initEditor() {
         const r = li.getBoundingClientRect(), rtl = li.closest("[dir=rtl]");
         const x = rtl ? r.right - e.clientX : e.clientX - r.left;
         if (x <= 22) { ed.undoManager.transact(() => ed.dom.toggleClass(li, "done")); markDirty(); }
+      });
+      // Tab behaves like Word: spaces in text, indent in lists, next cell in tables (never leaves the page)
+      ed.on("keydown", (e) => {
+        if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey) return;
+        const node = ed.selection.getNode();
+        if (ed.dom.getParent(node, "td,th")) return;              // table plugin moves between cells
+        e.preventDefault();
+        if (ed.dom.getParent(node, "li")) { markDirty(); return; }  // the lists plugin indents / outdents the item
+        if (e.shiftKey) { ed.execCommand("Outdent"); markDirty(); return; }
+        ed.insertContent("&nbsp;&nbsp;&nbsp;&nbsp;"); markDirty();
       });
       ed.on("input change undo redo Paste", () => markDirty());
       ed.on("ExecCommand", (e) => { if (!/^(mceFocus|SelectAll|mceRepaint|mceSearchReplace|mceVisualBlocks|mceFullScreen|mceWordCount|mceCodeEditor)$/i.test(e.command || "")) markDirty(); });
