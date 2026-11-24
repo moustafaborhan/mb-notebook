@@ -1,6 +1,6 @@
 // MB Notebook offline support: keeps the app itself available without internet.
 // Your pages are never cached here (they're kept in the app's own offline storage).
-const CACHE = "mbn-2.0.1";
+const CACHE = "mbn-2.0.2";
 const SHELL = ["./", "./index.html", "./app.js", "./config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => {

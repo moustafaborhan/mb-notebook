@@ -6,7 +6,7 @@
    Edits save to the Google Doc a couple of seconds after you stop
    typing; other devices pick changes up within ~15 seconds.
    ============================================================ */
-const APP_VERSION = "2.0.1";
+const APP_VERSION = "2.0.2";
 const CONFIG = window.MBN_CONFIG || {};
 const ROOT_ID = CONFIG.rootId || "12VpHmTOvgahjI8jEMMMC2NBYjS2Os5dO";
 const ROOT_NAME = CONFIG.rootName || "MBorhan-Cloud_Word";
@@ -1029,7 +1029,10 @@ html { background: #E9ECF1; }
 body { box-sizing: border-box; max-width: 8.27in; min-height: 11.69in; margin: 28px auto 60px; padding: 0.9in 1in; background: #fff; color: #1B1F24;
   box-shadow: 0 1px 3px rgba(20,30,45,.14), 0 10px 30px rgba(20,30,45,.08);
   font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; font-size: 11pt; line-height: 1.45; }
-@media (max-width: 760px) { html { background: #fff; } body { margin: 0; padding: 16px 16px 80px; box-shadow: none; min-height: 0; max-width: none; } }
+/* Full width (default): the page fills the window like OneNote */
+html.full { background: #fff; min-height: 100%; }
+html.full body { max-width: none; min-height: 0; margin: 0; padding: 28px 48px 120px; box-shadow: none; }
+@media (max-width: 760px) { html { background: #fff; } body, html.full body { margin: 0; padding: 16px 16px 80px; box-shadow: none; min-height: 0; max-width: none; } }
 h1, h2, h3, h4 { line-height: 1.2; margin: 1.1em 0 .4em; }
 h1 { font-size: 20pt; color: #1F3A63; } h2 { font-size: 16pt; color: #1F4E8C; } h3 { font-size: 13pt; color: #1F4E8C; } h4 { font-size: 12pt; color: #1F4E8C; }
 p { margin: 0 0 .5em; }
@@ -1119,9 +1122,16 @@ async function initEditor() {
       ed.on("ExecCommand", (e) => { if (!/^(mceFocus|SelectAll|mceRepaint|mceSearchReplace|mceVisualBlocks|mceFullScreen|mceWordCount|mceCodeEditor)$/i.test(e.command || "")) markDirty(); });
       ed.on("keyup", (e) => { if (e.key && e.key.length === 1) markDirty(); });
       ed.addShortcut("meta+s", "Save now", () => { clearTimeout(S.saveTimer); saveNow(); });
-      ed.on("init", () => { S.edReady = true; ed.mode.set("readonly"); resolveEditor(); });
+      ed.on("init", () => { S.edReady = true; applyLayout(); ed.mode.set("readonly"); resolveEditor(); });
     },
   });
+}
+/* page layout: full width (fills the window) or print layout (A4 sheet) */
+const layout = () => lsGet("mbn2:layout") || "full";
+function applyLayout() { const d = S.ed && S.ed.getDoc(); if (d) d.documentElement.classList.toggle("full", layout() === "full"); }
+function toggleLayout() {
+  lsSet("mbn2:layout", layout() === "full" ? "print" : "full"); applyLayout();
+  toast(layout() === "full" ? "Full width: the page fills the window" : "Print layout: shows the page as an A4 sheet");
 }
 function toggleTodo(ed) {
   const ul = ed.dom.getParent(ed.selection.getNode(), "ul");
@@ -1139,6 +1149,7 @@ function pageMenu(anchor) {
     { label: "Move to another section", run: movePage },
     { label: "Duplicate page", run: duplicatePage },
     { label: "Find and replace", hint: "Ctrl+F", run: () => S.ed.execCommand("SearchReplace") },
+    { label: layout() === "full" ? "Print layout (A4 page)" : "Full width page", run: toggleLayout },
     "-",
     { label: "Delete page", danger: true, run: deletePage },
   ]);
