@@ -6,7 +6,7 @@
    Edits save to the Google Doc a couple of seconds after you stop
    typing; other devices pick changes up within ~15 seconds.
    ============================================================ */
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.0.1";
 const CONFIG = window.MBN_CONFIG || {};
 const ROOT_ID = CONFIG.rootId || "12VpHmTOvgahjI8jEMMMC2NBYjS2Os5dO";
 const ROOT_NAME = CONFIG.rootName || "MBorhan-Cloud_Word";
@@ -309,7 +309,7 @@ function toSection(f) { return { id: f.id, name: f.name, color: f.folderColorRgb
 function toPage(f) {
   const ap = f.appProperties || {};
   return { id: f.id, title: f.name, sectionId: (f.parents || [])[0], modifiedAt: Date.parse(f.modifiedTime) || 0, version: String(f.version || ""),
-    url: f.webViewLink, device: ap.d || "", words: Number(ap.w || 0), preview: ap.p || "" };
+    url: f.webViewLink, device: ap.d || "", words: Number(ap.w || 0), preview: ap.p || "", saveId: ap.s || "" };
 }
 let treeBusy = null;
 async function refreshTree() {
@@ -643,6 +643,16 @@ function previewOf(text) {  // appProperties hold ~120 bytes
   let p = text.slice(0, 90); while (new TextEncoder().encode("p" + p).length > 118) p = p.slice(0, -1); return p;
 }
 
+/* Was this page changed somewhere else since `base` (our last save or open)?
+   Google Docs bumps a Doc's version/modified time on its own right after a save,
+   so we look at who saved (MB Notebook save id) and allow a short settle window. */
+function changedElsewhere(meta, base) {
+  if (!meta || !base) return false;
+  if (meta.saveId && meta.saveId !== (base.saveId || "")) return true;   // another device saved with MB Notebook
+  return (meta.modifiedAt || 0) > (base.writeAt || 0) + 20000;            // edited in Google Docs itself
+}
+const newSaveId = () => DEVICE.slice(0, 1) + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
 /* ============================================================
    Pages: open / save / create / delete / move
    ============================================================ */
@@ -654,7 +664,7 @@ async function openPage(id, { html: given } = {}) {
   const meta = S.pages.get(id); if (!meta) return;
   if (S.cur && S.cur.id !== id) await flushSave();
   await editorReady;
-  S.cur = { id, version: meta.version, savedHtml: null, savedTitle: meta.title || "" };
+  S.cur = { id, version: meta.version, savedHtml: null, savedTitle: meta.title || "", saveId: meta.saveId || "", writeAt: meta.modifiedAt || 0 };
   S.dirty = false; clearTimeout(S.saveTimer);
   if (meta.sectionId !== S.curSection && !S.search) S.curSection = meta.sectionId;
   lsSet("mbn2:lastPage", id);
@@ -680,7 +690,7 @@ async function openPage(id, { html: given } = {}) {
   }
   if (!S.cur || S.cur.id !== id) return;
   let restored = false;
-  if (draft && draft.baseVersion === meta.version && given == null) {
+  if (draft && given == null && !changedElsewhere(meta, draft.base || { saveId: meta.saveId, writeAt: 0 })) {
     html = draft.html; restored = true; if (draft.title != null) $("titleInput").value = draft.title;
   } else if (draft && given == null) {
     // the page changed elsewhere after these offline edits: keep both
@@ -734,18 +744,19 @@ async function onCurrentPageMeta() {
   if (!meta) { if (S.loaded) { toast("This page was deleted or moved to the trash on another device."); closePage(); } return; }
   if (document.activeElement !== $("titleInput") && !S.dirty) $("titleInput").value = meta.title || "";
   renderMeta();
-  if (meta.version && S.cur.version && meta.version !== S.cur.version && !S.saving) {
+  if (!S.saving && changedElsewhere(meta, S.cur)) {
     if (!S.dirty) {
       const id = S.cur.id, keep = S.ed.getWin()?.scrollY || 0;
       try {
         const html = await readPage(id);
         if (!S.cur || S.cur.id !== id || S.dirty) return;
-        S.cur.version = meta.version; setEditorContent(html); S.cur.savedHtml = S.ed.getContent(); S.cur.savedTitle = meta.title;
+        S.cur.version = meta.version; S.cur.saveId = meta.saveId; S.cur.writeAt = meta.modifiedAt;
+        setEditorContent(html); S.cur.savedHtml = S.ed.getContent(); S.cur.savedTitle = meta.title;
         idb.set("page:" + id, { html, version: meta.version, title: meta.title });
         S.ed.getWin()?.scrollTo(0, keep);
         toast("Updated with changes from " + (meta.device || "another device"));
       } catch {}
-    } else S.cur.remoteChanged = true;   // resolved when we save
+    } else S.cur.remoteChanged = true;   // you have unsaved edits: you'll be asked when this page saves
   }
 }
 
@@ -766,7 +777,7 @@ let draftTimer;
 function writeDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(writeDraft, 600); }
 function writeDraft() {
   if (!S.cur || !S.dirty) return;
-  idb.set("draft:" + S.cur.id, { html: S.ed.getContent(), title: $("titleInput").value, baseVersion: S.cur.version, t: Date.now() });
+  idb.set("draft:" + S.cur.id, { html: S.ed.getContent(), title: $("titleInput").value, base: { saveId: S.cur.saveId, writeAt: S.cur.writeAt }, t: Date.now() });
 }
 async function saveNow({ force = false } = {}) {
   if (!S.cur || !S.edReady) return;
@@ -781,19 +792,21 @@ async function saveNow({ force = false } = {}) {
   try {
     // did someone change this page since we opened it?
     if (!force) {
-      const now = await api("/files/" + pid, { query: { fields: "version,trashed" } });
+      const now = await api("/files/" + pid, { query: { fields: "modifiedTime,appProperties,trashed" } });
       if (now.trashed) { S.saving = false; toast("This page is in the Drive trash. Restore it from Google Drive to keep editing."); setSave("error"); return; }
-      if (S.cur.version && String(now.version) !== S.cur.version) {
+      const remote = { saveId: now.appProperties?.s || "", modifiedAt: Date.parse(now.modifiedTime) || 0 };
+      if (changedElsewhere(remote, S.cur)) {
         S.saving = false;
         const v = await sheet({ title: "This page changed on another device",
           text: "It was edited somewhere else while you were editing here. Keep your version here (the other changes are replaced), or load the other version (your edits here are saved as a separate copy).",
           ok: "Keep my version", extra: { label: "Load other version", value: "theirs" }, cancel: "" });
-        if (v === "theirs") { await saveConflictCopy(meta, { html, title }); S.dirty = false; await idb.del("draft:" + pid); S.pages.get(pid).version = String(now.version); return reopen(pid); }
+        if (v === "theirs") { await saveConflictCopy(meta, { html, title }); S.dirty = false; await idb.del("draft:" + pid); S.pages.get(pid).version = ""; return reopen(pid); }
         return saveNow({ force: true });
       }
     }
     const text = textOf(html);
-    const metaBody = { name: title, appProperties: { d: DEVICE, w: String(text ? text.split(" ").length : 0), p: previewOf(text) } };
+    const sid = newSaveId();
+    const metaBody = { name: title, appProperties: { d: DEVICE, w: String(text ? text.split(" ").length : 0), p: previewOf(text), s: sid } };
     let f;
     if (contentChanged) {
       const mp = multipart(metaBody, toGoogle(html, title), "text/html");
@@ -803,7 +816,7 @@ async function saveNow({ force = false } = {}) {
     }
     const p = toPage(f);
     S.pages.set(pid, p); cacheTree();
-    if (S.cur && S.cur.id === pid) { S.cur.version = p.version; S.cur.savedTitle = title; if (contentChanged) S.cur.savedHtml = html; S.cur.remoteChanged = false; }
+    if (S.cur && S.cur.id === pid) { S.cur.version = p.version; S.cur.saveId = sid; S.cur.writeAt = p.modifiedAt; S.cur.savedTitle = title; if (contentChanged) S.cur.savedHtml = html; S.cur.remoteChanged = false; }
     idb.set("page:" + pid, { html, version: p.version, title });
     const still = S.cur && S.cur.id === pid && (S.ed.getContent() !== S.cur.savedHtml || ($("titleInput").value.trim() || "Untitled page") !== S.cur.savedTitle);
     S.dirty = !!still;
@@ -845,8 +858,8 @@ async function pushOfflineDrafts() {
     const d = await idb.get(k), meta = S.pages.get(pid);
     if (!d || !meta) continue;
     try {
-      if (d.baseVersion === meta.version) {
-        const mp = multipart({ name: d.title || meta.title }, toGoogle(d.html, d.title || meta.title), "text/html");
+      if (!changedElsewhere(meta, d.base || { saveId: meta.saveId, writeAt: 0 })) {
+        const mp = multipart({ name: d.title || meta.title, appProperties: { d: DEVICE, s: newSaveId() } }, toGoogle(d.html, d.title || meta.title), "text/html");
         const f = await api("/files/" + pid, { method: "PATCH", upload: true, query: { uploadType: "multipart", fields: PAGE_FIELDS }, body: mp.body, headers: mp.headers });
         S.pages.set(pid, toPage(f)); idb.set("page:" + pid, { html: d.html, version: String(f.version), title: f.name });
       } else await saveConflictCopy(meta, d);
@@ -858,7 +871,7 @@ async function pushOfflineDrafts() {
 
 async function createPage({ title = "Untitled page", html = "", sectionId = S.curSection } = {}) {
   if (!sectionId) { toast("Create a section first."); return null; }
-  const mp = multipart({ name: title, mimeType: DOC, parents: [sectionId], appProperties: { d: DEVICE, w: "0", p: "" } }, toGoogle(html, title), "text/html");
+  const mp = multipart({ name: title, mimeType: DOC, parents: [sectionId], appProperties: { d: DEVICE, w: "0", p: "", s: newSaveId() } }, toGoogle(html, title), "text/html");
   const f = await api("/files", { method: "POST", upload: true, query: { uploadType: "multipart", fields: PAGE_FIELDS }, body: mp.body, headers: mp.headers });
   S.pages.set(f.id, toPage(f)); cacheTree();
   return f.id;
